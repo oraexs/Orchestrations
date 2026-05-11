@@ -1,0 +1,32 @@
+[project]
+name = "codegen-rag-gen"
+version = "0.1.0"
+description = "LangGraph-based RAG ingestion and semantic search prototype"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  # LangGraph core + prebuilt agent support
+  "langgraph>=0.2.0",
+  # LangChain core (tool decorator, base messages)
+  "langchain-core>=0.2.0",
+  # Groq LLM integration
+  "langchain-groq>=0.1.0",
+  # PDF reading
+  "pypdf2>=3.0.0",
+  # Environment variable loading from .env
+  "python-dotenv>=1.0.0",
+  # Vector store
+  "qdrant-client>=1.10.0",
+  # Semantic embedding model (BAAI/bge-small-en-v1.5, ONNX, CPU-only, offline)
+  "fastembed>=0.3.0",
+]
+
+[project.optional-dependencies]
+alt-embedders = [
+  # Heavier alternative; not needed when fastembed is used
+  # "sentence-transformers>=3.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
