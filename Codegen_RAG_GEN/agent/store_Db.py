@@ -39,7 +39,10 @@ except Exception:
 
 qdrant_mod = importlib.import_module("qdrant_client")
 qdrant_client_cls = getattr(qdrant_mod, "QdrantClient")
-shared_qdrant_client = qdrant_client_cls(path="./data/qdrant")
+# Use path relative to this file's location (agent/data/qdrant) for consistency.
+# This way, Qdrant data is scoped to the agent module regardless of cwd.
+qdrant_data_path = str(Path(__file__).parent / "data" / "qdrant")
+shared_qdrant_client = qdrant_client_cls(path=qdrant_data_path)
 
 local_vector_db = QdrantVectorDB(
     vector_size=embedding_model.dimension,

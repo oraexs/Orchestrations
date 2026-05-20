@@ -24,6 +24,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, TypedDict
 from uuid import uuid4
+from codingAgent import _load_runtime_components, llm
 
 try:
     from agent.store_Db import search_workspace_structures, semantic_search, store_workspace_structure
@@ -200,6 +201,7 @@ def _guess_language(file_path: str) -> str:
     mapping = {
         ".py": "python",
         ".c": "c",
+        ".cpp": "cpp",
         ".h": "c-header",
         ".md": "markdown",
         ".txt": "text",
@@ -306,14 +308,14 @@ def compare_manifests(
     # Convert to sets for efficient O(1) membership and diff operations.
     # set(dict) extracts keys only, enabling fast set operations.
     # Example: set({"a.txt": {...}, "b.txt": {...}}) -> {"a.txt", "b.txt"}.
-    base_paths = set(base_manifest)
-    current_paths = set(current_manifest)
+    base_paths = set(base_manifest) #Convert dict keys to set for efficient comparison.
+    current_paths = set(current_manifest) #Convert dict keys to set for efficient comparison.
 
     # Set difference operations:
     # (current_paths - base_paths) - files in current that weren't in base = newly added.
     # (base_paths - current_paths) - files in base that aren't in current = deleted.
     # sorted() ensures deterministic ordering for consistent diffs across runs.
-    added_paths = sorted(current_paths - base_paths)
+    added_paths = sorted(current_paths - base_paths) 
     removed_paths = sorted(base_paths - current_paths)
 
     modified_paths: List[str] = []
@@ -783,6 +785,62 @@ class WorkspaceAgent:
             similarity_threshold=similarity_threshold,
         )
 
+#Take the intent from the user and extract prompt from the intent agent
+def extract_intent_from_user_prompt(user_prompt: str) -> str:
+    create_react_agent, memory_saver_cls, tool_decorator = _load_runtime_components()
+    agent =  create_react_agent(
+        model = llm,
+        prompt = (
+            f"You have provided the user prompt: {user_prompt}\n"
+            f"Extract the intent from the user prompt and return it as a concise string.\n"
+        ),
+        tools = [],
+        )
+    response = agent.invoke({})
+    return response.strip()
+
+#Create an agent which asks LLM for the structure of the workspace
+def ask_llm__for_Workspace_structure(prompt: str) -> Dict[str, Any]:
+   create_react_agent, memory_saver_cls, tool_decorator = _load_runtime_components()
+
+   intent = extract_intent_from_user_prompt(prompt)
+   base_snapshot = retrieve_base_snapshot(prompt)
+
+   if not base_snapshot:
+        repo_snapshot = {}
+        repo_snapshot_str = ""
+    else:
+        repo_snapshot = base_snapshot.get("file_manifest", {})
+        if not repo_snapshot:
+            repo_snapshot = {}
+            print("\n Repo snapshot is empty, proceeding with an empty structure.\n")
+        else:
+            #now convert the dictionary to the string format to pass it to the LLM
+            repo_snapshot_str = json.dumps(repo_snapshot, indent=2)
+
+    agent =  create_react_agent(
+        model = llm,
+        #Add the root folders and filemanifest here correctly,
+        #Rather than using the two list structures, use the tree to store the file structure
+        #Convert the tree structure to the string format and pass it to the LLM.
+        #Create an other function to convert the lists in to the tree structure and then convert to the string and pass it to the LLM.
+        prompt = (
+            f"This is the current workspace structure in JSON format named as repo_snapshot: {repo_snapshot_str}\n"
+            f"consider the user's intent: {intent}, if the current reposnapshot is NULL or empty then only consider the user's intent in creating the workspace. Else, do not consider the user's intent"
+            f"Generate a string with the same format of repo_snapshot"
+        ),
+        tools = [],
+        )
+   #Invoke the AI agent
+   response = agent.invoke({})
+
+   try:
+       #Structure it's returning is in the format of 
+       structure = json.loads(response)
+       return structure 
+    except json.JSONDecodeError:
+       raise ValueError(f"LLM response is not valid JSON: {response}")
+   return {}
 
 def demo_workspace_agent_create_then_delete_in_testing(
     workspace_root: str | Path = ".",
