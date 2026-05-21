@@ -799,6 +799,10 @@ def extract_intent_from_user_prompt(user_prompt: str) -> str:
     response = agent.invoke({})
     return response.strip()
 
+#Add the root folders and filemanifest here correctly,
+#Rather than using the two list structures, use the tree to store the file structure    
+#Convert the tree structure to the string format and pass it to the LLM.
+#Create an other function to convert the lists in to the tree structure and then convert to the string and pass it to the LLM.
 #Create an agent which asks LLM for the structure of the workspace
 def ask_llm__for_Workspace_structure(prompt: str) -> Dict[str, Any]:
    create_react_agent, memory_saver_cls, tool_decorator = _load_runtime_components()
@@ -807,25 +811,29 @@ def ask_llm__for_Workspace_structure(prompt: str) -> Dict[str, Any]:
    base_snapshot = retrieve_base_snapshot(prompt)
 
    if not base_snapshot:
+        repo_root_folders = []
         repo_snapshot = {}
         repo_snapshot_str = ""
+        repo_root_folders_str = ""
+        print("\n No base snapshot found, proceeding with an empty structure.\n")
     else:
+        repo_root_folders = base_snapshot.get("root_folders", [])
         repo_snapshot = base_snapshot.get("file_manifest", {})
-        if not repo_snapshot:
+        if not repo_snapshot | repo_root_folders:
             repo_snapshot = {}
+            repo_root_folders = []
             print("\n Repo snapshot is empty, proceeding with an empty structure.\n")
         else:
+            #Convert the list of root folder to the string
+            repo_root_folders_str = json.dumps(repo_root_folders, indent=2)
             #now convert the dictionary to the string format to pass it to the LLM
             repo_snapshot_str = json.dumps(repo_snapshot, indent=2)
 
     agent =  create_react_agent(
         model = llm,
-        #Add the root folders and filemanifest here correctly,
-        #Rather than using the two list structures, use the tree to store the file structure
-        #Convert the tree structure to the string format and pass it to the LLM.
-        #Create an other function to convert the lists in to the tree structure and then convert to the string and pass it to the LLM.
         prompt = (
-            f"This is the current workspace structure in JSON format named as repo_snapshot: {repo_snapshot_str}\n"
+            f"This is the current root folder in JSON format named as repo_root_folders: {repo_root_folders_str}\n"
+            f"This is the current workspace structure in JSON format named as repo_snapshot: {repo_snapshot_str} and this workspace is subfolder to repo_root_folders\n"
             f"consider the user's intent: {intent}, if the current reposnapshot is NULL or empty then only consider the user's intent in creating the workspace. Else, do not consider the user's intent"
             f"Generate a string with the same format of repo_snapshot"
         ),
